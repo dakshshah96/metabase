@@ -1,9 +1,9 @@
+// @ts-nocheck
 import _ from "underscore";
 import { t, ngettext, msgid } from "ttag";
 import { parseTimestamp } from "metabase/lib/time";
 import MetabaseUtils from "metabase/lib/utils";
 import moment from "moment";
-
 // TODO: dump this from backend settings definitions
 export type SettingName =
   | "admin-email"
@@ -34,17 +34,14 @@ export type SettingName =
   | "version-info-last-checked"
   | "premium-features"
   | "analytics-uuid";
+type SettingsMap = Record<SettingName, any>; // provides access to Metabase application settings
 
-type SettingsMap = { [key: SettingName]: any };
-
-// provides access to Metabase application settings
 class Settings {
   _settings: SettingsMap;
-  _listeners: { [key: SettingName]: Function[] };
+  _listeners: { [key in SettingName]?: ((...args: Array<any>) => any)[] } = {};
 
   constructor(settings: SettingsMap) {
     this._settings = settings;
-    this._listeners = {};
   }
 
   get(key: SettingName, defaultValue: any = null) {
@@ -56,6 +53,7 @@ class Settings {
   set(key: SettingName, value: any) {
     if (this._settings[key] !== value) {
       this._settings[key] = value;
+
       if (this._listeners[key]) {
         for (const listener of this._listeners[key]) {
           setTimeout(() => listener(value));
@@ -72,6 +70,7 @@ class Settings {
 
   on(key, callback) {
     this._listeners[key] = this._listeners[key] || [];
+
     this._listeners[key].push(callback);
   }
 
@@ -123,6 +122,7 @@ class Settings {
 
   versionInfoLastChecked() {
     const ts = this.get("version-info-last-checked");
+
     if (ts) {
       // app DB stores this timestamp in UTC, so convert it to the local zone to render
       return moment
@@ -137,6 +137,7 @@ class Settings {
   docsUrl(page = "", anchor = "") {
     let { tag } = this.get("version", {});
     const matches = tag.match(/v[01]\.(\d+)(?:\.\d+)?(-.*)?/);
+
     if (matches) {
       if (
         matches.length > 2 &&
@@ -153,12 +154,15 @@ class Settings {
       // otherwise, just link to the latest tag
       tag = "latest";
     }
+
     if (page) {
       page = `${page}.html`;
     }
+
     if (anchor) {
       anchor = `#${anchor}`;
     }
+
     return `https://www.metabase.com/docs/${tag}/${page}${anchor}`;
   }
 
@@ -186,7 +190,6 @@ class Settings {
     We expect the versionInfo to take on the JSON structure detailed below.
     The 'older' section should contain only the last 5 previous versions, we don't need to go on forever.
     The highlights for a version should just be text and should be limited to 5 items tops.
-
     type VersionInfo = {
       latest: Version,
       older: Version[]
@@ -230,8 +233,8 @@ class Settings {
    */
   passwordComplexityDescription(password = "") {
     const requirements = this.passwordComplexityRequirements();
-
     const descriptions = {};
+
     for (const [name, clause] of Object.entries(PASSWORD_COMPLEXITY_CLAUSES)) {
       if (!clause.test(requirements, password)) {
         descriptions[name] = clause.description(requirements);
@@ -240,6 +243,7 @@ class Settings {
 
     const { total, ...rest } = descriptions;
     const includes = Object.values(rest).join(", ");
+
     if (total && includes) {
       return t`must be ${total} and include ${includes}.`;
     } else if (total) {
@@ -252,7 +256,7 @@ class Settings {
   }
 
   subscriptionAllowedDomains() {
-    const setting = this.get("subscription-allowed-domains") ?? "";
+    const setting = this.get("subscription-allowed-domains") || "";
     return setting ? setting.split(",") : [];
   }
 }
